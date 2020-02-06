@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+# This program was built on Python 3.8.1.
+
 from enum import Enum
 from numpy import interp
 import pygame
@@ -23,66 +25,15 @@ ser = serial.Serial(comPort, 57600, timeout=1)
 #     Right joystick X-axis -- turn/arc
 #
 # Arm:
-#  In manual mode...
 #    Right trigger -- arm up (analog control)
 #    Left trigger -- arm down (analog control)
-#    Start button -- consider the current position the new "down" position for auto mode
-#    Press right bumper -- enter auto mode
-#    Hold left bumper -- enter hold mode
-#  In auto mode...
-#    Nothing -- arm goes to "down" position
-#    Hold one bumper (either one) -- arm goes to "over bumps" position
-#    Hold both bumpers -- arm goes to "up" position
-#    Press either trigger -- return to manual mode
-#    'A' button -- return to manual mode
-#  In hold mode...
-#    Right trigger -- move the setpoint up (analog control)
-#    Left trigger -- move the setpoint down (analog control)
-#    Release left bumper -- return to manual mode
 #######################
 
 # Set the channel numbers for various controls
-BUTTON_ID_ARM_HOLD = 4  # Button used to put the arm in hold mode
-BUTTON_IDS_ARM_AUTO = [4, 5]  # Buttons used to control arm in auto mode
-BUTTON_ID_EXIT_AUTO = 0  # Button used to forcefully exit auto mode
-BUTTON_ID_RESET_ARM_POS = 7  # Button used to zero the arm position
-BUTTON_ID_SEND_PID_GAINS = 6  # Button used to transmit the PID gains stored in this script
-                              # (different from what the robot might have as its own defaults)
-AXIS_ID_ARM_MANUAL = 2  # Analog triggers for manual arm control
+AXIS_ID_DRIVE_VELOCITY = 1  # Y-axis translation comes from the left joystick Y axis
+AXIS_ID_DRIVE_ROTATION = 4  # Rotation comes from the right joystick X axis
+AXIS_ID_ARM = 2  # Analog triggers for arm control
 BUTTON_ID_STOP_PROGRAM = 1
-
-class ArmMode(Enum):
-    MANUAL = 0
-    ANGLE = 1
-    HOLD = 2
-
-# Set the preset values for automatic arm control
-ARM_POS_DOWN = 0
-ARM_POS_OVER_BUMPS = 10
-ARM_POS_UP = 80
-
-# Set the PID gains (only transmitted when hitting the "send PID gains" button)
-PID_ERROR_OR_MEASUREMENT = 'E'  # 'E' for error, 'M' for measurement
-PID_P_GAIN = "0.43"  # Must be a double in string format
-PID_I_GAIN = "0"
-#PID_I_GAIN = "0.0001"  # Must be a double in string format
-PID_D_GAIN = "0.05"  # Must be a double in string format
-ARM_ANGLE_SCALE_FACTOR = "20"  # Must be a double in string format
-ARM_HOLD_SCALE_FACTOR = "1"  # Must be a double in string format
-
-# Set the reserved values for communicating special signals to the robot.
-# NOTE: Reserved values are selected around 127 ("zero motor power") since those values are rarely
-#       used because it takes more power than that to overcome the motor and gearbox resistance.
-RESERVED_VALUES_MAX = 127  # The highest reserved value
-RESERVED_VALUES_MIN = 123  # The lowest reserved value
-RESERVED_VALUE_ENTER_ARM_AUTO = 124
-RESERVED_VALUE_ENTER_ARM_MANUAL = 125
-RESERVED_VALUE_RESET_ARM_POS = 123
-RESERVED_VALUE_SET_PID_GAINS = 126
-RESERVED_VALUE_ENTER_ARM_HOLD = 127
-
-# Set the number of times to transmit each mode change message
-RESEND_COUNT_MODE_CHANGE = 3
 
 def main():
 
@@ -98,12 +49,8 @@ def main():
 
     # Local variables
     prevDriveMtrCmds = {'left':0, 'right':0}
-    prevArmCmd = RESERVED_VALUE_ENTER_ARM_MANUAL
-    prevArmFlags = 0
+    prevArmCmd = 127
     prevTimeSent = 0
-    prevArmMode = ArmMode.MANUAL
-    currArmMode = ArmMode.MANUAL
-    transmitXTimes = RESEND_COUNT_MODE_CHANGE
     done = False
     loopCounter = 0
 
@@ -119,65 +66,27 @@ def main():
             ##### WHEEL COMMANDS #####
 
             # Get the raw values for drive translation/rotation using the gamepad.
-            yRaw = joysticks[0].get_axis(1)   # Y-axis translation comes from the left joystick Y axis
-            rRaw = -joysticks[0].get_axis(4)  # Rotation comes from the right joystick X axis
+            yRaw = joysticks[0].get_axis(AXIS_ID_DRIVE_VELOCITY)
+            rRaw = -joysticks[0].get_axis(AXIS_ID_DRIVE_ROTATION)
 
             # Get the drive motor commands for Arcade Drive
             driveMtrCmds = arcadeDrive(yRaw, rRaw)
-            driveMtrCmds['left'] = 255 - driveMtrCmds['left']
+            driveMtrCmds['left'] = 254 - driveMtrCmds['left']
             driveMtrCmds['right'] = driveMtrCmds['right']
-
-            # Protect against sending a reserved value
-            if driveMtrCmds['left'] == RESERVED_VALUE_SET_PID_GAINS:
-                driveMtrCmds['left'] = RESERVED_VALUE_SET_PID_GAINS + 1
-            if driveMtrCmds['right'] == RESERVED_VALUE_SET_PID_GAINS:
-                driveMtrCmds['right'] = RESERVED_VALUE_SET_PID_GAINS + 1
 
             ##########################
 
             ###### ARM COMMAND #######
 
             # Get the raw values for the arm using the gamepad
-            armRawManual = joysticks[0].get_axis(AXIS_ID_ARM_MANUAL)
-            armHoldBtn = joysticks[0].get_button(BUTTON_ID_ARM_HOLD)
-            armAutoNumBtns = (1 if joysticks[0].get_button(BUTTON_IDS_ARM_AUTO[0]) else 0) + \
-                               (1 if joysticks[0].get_button(BUTTON_IDS_ARM_AUTO[1]) else 0)
-            armBtnExitAuto = joysticks[0].get_button(BUTTON_ID_EXIT_AUTO)
-            armBtnZero = joysticks[0].get_button(BUTTON_ID_RESET_ARM_POS)
-            armBtnSendPIDGains = joysticks[0].get_button(BUTTON_ID_SEND_PID_GAINS)
+            armRaw = joysticks[0].get_axis(AXIS_ID_ARM)
 
-            (rawArmCmd, currArmMode) = armDrive(armRawManual, armHoldBtn, armAutoNumBtns, armBtnExitAuto, prevArmMode)
-
-            if transmitXTimes > 0:
-                armCmd = prevArmCmd
-            elif currArmMode == ArmMode.MANUAL and prevArmMode != ArmMode.MANUAL:
-                armCmd = RESERVED_VALUE_ENTER_ARM_MANUAL
-                transmitXTimes = RESEND_COUNT_MODE_CHANGE
-            elif currArmMode == ArmMode.ANGLE and prevArmMode != ArmMode.ANGLE:
-                armCmd = RESERVED_VALUE_ENTER_ARM_AUTO
-                transmitXTimes = RESEND_COUNT_MODE_CHANGE
-            elif currArmMode == ArmMode.HOLD and prevArmMode != ArmMode.HOLD:
-                armCmd = RESERVED_VALUE_ENTER_ARM_HOLD
-                transmitXTimes = RESEND_COUNT_MODE_CHANGE
-            elif armBtnZero:
-                armCmd = RESERVED_VALUE_RESET_ARM_POS
-                transmitXTimes = RESEND_COUNT_MODE_CHANGE
-            elif armBtnSendPIDGains:
-                armCmd = RESERVED_VALUE_SET_PID_GAINS
-                # To reset the PID gains, all 3 motor commands (left, right, arm) need to be set to the reserved value
-                driveMtrCmds['left'] = RESERVED_VALUE_SET_PID_GAINS
-                driveMtrCmds['right'] = RESERVED_VALUE_SET_PID_GAINS
-            else:
-                if RESERVED_VALUES_MIN <= rawArmCmd and rawArmCmd <= RESERVED_VALUES_MAX:
-                    armCmd = RESERVED_VALUES_MAX + 1
-                else:
-                    armCmd = rawArmCmd
-
-            prevArmMode = currArmMode
+            # NOTE: Choose linear or exponential drive by changing between
+            #       `manualArmLinDrive()` and `manualArmExpDrive()`
+            armCmd = manualArmLinDrive(armRaw)
 
             ##########################
 
-           
             if joysticks[0].get_button(BUTTON_ID_STOP_PROGRAM):
                 cleanup()
                 done = True
@@ -190,50 +99,14 @@ def main():
                 print("Sending... L: ", driveMtrCmds['left'], ", R: ", driveMtrCmds['right'], \
                           ", A: ", armCmd, ", loopCounter: ", loopCounter)
                 loopCounter = loopCounter + 1
-                ser.write(chr(255))  # Start byte
-                ser.write(chr(driveMtrCmds['left']))
-                ser.write(chr(driveMtrCmds['right']))
-                ser.write(chr(armCmd))
-
-                if driveMtrCmds['left'] == RESERVED_VALUE_SET_PID_GAINS and \
-                   driveMtrCmds['right'] == RESERVED_VALUE_SET_PID_GAINS and \
-                   armCmd == RESERVED_VALUE_SET_PID_GAINS:
-                    checksum = int(0)
-                    ser.write(PID_ERROR_OR_MEASUREMENT)
-                    checksum += ord(PID_ERROR_OR_MEASUREMENT)
-
-                    ser.write(chr(len(PID_P_GAIN)))
-                    for i in range(0, len(PID_P_GAIN)):
-                        ser.write(PID_P_GAIN[i])
-                        checksum += ord(PID_P_GAIN[i])
-
-                    ser.write(chr(len(PID_I_GAIN)))
-                    for i in range(0, len(PID_I_GAIN)):
-                        ser.write(PID_I_GAIN[i])
-                        checksum += ord(PID_I_GAIN[i])
-
-                    ser.write(chr(len(PID_D_GAIN)))
-                    for i in range(0, len(PID_D_GAIN)):
-                        ser.write(PID_D_GAIN[i])
-                        checksum += ord(PID_D_GAIN[i])
-
-                    ser.write(chr(len(ARM_ANGLE_SCALE_FACTOR)))
-                    for i in range(0, len(ARM_ANGLE_SCALE_FACTOR)):
-                        ser.write(ARM_ANGLE_SCALE_FACTOR[i])
-                        checksum += ord(ARM_ANGLE_SCALE_FACTOR[i])
-
-                    ser.write(chr(len(ARM_HOLD_SCALE_FACTOR)))
-                    for i in range(0, len(ARM_HOLD_SCALE_FACTOR)):
-                        ser.write(ARM_HOLD_SCALE_FACTOR[i])
-                        checksum += ord(ARM_HOLD_SCALE_FACTOR[i])
-
-                    ser.write(chr(checksum & 0x0FF))
+                ser.write(chr(255).encode())  # Start byte
+                ser.write(chr(driveMtrCmds['left']).encode())
+                ser.write(chr(driveMtrCmds['right']).encode())
+                ser.write(chr(armCmd).encode())
 
                 prevDriveMtrCmds = driveMtrCmds
                 prevArmCmd = armCmd
                 prevTimeSent = time.time()*1000
-                if transmitXTimes >= 0:
-                    transmitXTimes -= 1
                 time.sleep(0.01)
 
     except KeyboardInterrupt:
@@ -327,43 +200,6 @@ def arcadeDrive(yIn, rIn):
 
     return {'left':leftMtrCmdFinal, 'right':rightMtrCmdFinal}
 
-
-############################################################
-## @brief  Function to compute the arm drive command
-## @param  manualIn - raw analog trigger input from -1.0 to 1.0
-## @param  armHoldBtn - whether or not the arm hold button is currently pressed
-## @param  autoNumBtns - the total number of buttons being pressed for automatic arm control
-## @param  exitAuto - whether to forcefully exit automatic control
-## @param  prevMode - mode of the arm from the previous iteration
-## @return (the arm command, the arm mode)
-############################################################
-def armDrive(manualIn, armHoldBtn, autoNumBtns, exitAuto, prevMode):
-
-    ZERO_COMMAND = 127  # the default value that corresponds to no motor power
-
-    # NOTE: Choose linear or exponential drive by changing between
-    #       `manualArmLinDrive()` and `manualArmExpDrive()`
-    manualCmd = manualArmLinDrive(manualIn)
-
-    if armHoldBtn and prevMode != ArmMode.ANGLE:
-        currMode = ArmMode.HOLD
-        armCmd = 254 - manualCmd
-    elif manualCmd != ZERO_COMMAND or (prevMode != ArmMode.ANGLE and autoNumBtns == 0) or exitAuto:
-        currMode = ArmMode.MANUAL 
-        armCmd = manualCmd
-    else:  # manualCmd == 0 and (prevMode == ArmMode.ANGLE or autoNumBtns > 0) and !exitAuto
-        currMode = ArmMode.ANGLE
-        if autoNumBtns == 0:
-            armCmd = ARM_POS_DOWN
-        elif autoNumBtns == 1:
-            armCmd = ARM_POS_OVER_BUMPS
-        else:  # autoNumBtns == 2
-            armCmd = ARM_POS_UP
-
-    if (armCmd == 127):
-        armCmd = 128
-
-    return (armCmd, currMode)
 
 ############################################################
 ## @brief  Function to compute the manual arm drive command
@@ -482,16 +318,10 @@ def sendNeutralCommand():
     global ser
 
     for i in range (0, 3):
-        ser.write(chr(255))
-        ser.write(chr(127))
-        ser.write(chr(127))
-        ser.write(chr(RESERVED_VALUE_ENTER_ARM_MANUAL))
-
-    for i in range (0, 3):
-        ser.write(chr(255))
-        ser.write(chr(127))
-        ser.write(chr(127))
-        ser.write(chr(128))
+        ser.write(chr(255).encode())
+        ser.write(chr(127).encode())
+        ser.write(chr(127).encode())
+        ser.write(chr(127).encode())
 
 
 ############################################################
