@@ -71,8 +71,8 @@ def main():
 
             # Get the drive motor commands for Arcade Drive
             driveMtrCmds = arcadeDrive(yRaw, rRaw)
-            driveMtrCmds['left'] = 254 - driveMtrCmds['left']
-            driveMtrCmds['right'] = driveMtrCmds['right']
+            driveMtrCmds['left'] = driveMtrCmds['left']
+            driveMtrCmds['right'] = 254 - driveMtrCmds['right']
 
             ##########################
 
@@ -83,7 +83,7 @@ def main():
 
             # NOTE: Choose linear or exponential drive by changing between
             #       `manualArmLinDrive()` and `manualArmExpDrive()`
-            armCmd = manualArmLinDrive(armRaw)
+            armCmd = manualArmExpDrive(armRaw)
 
             ##########################
 
@@ -99,10 +99,10 @@ def main():
                 print("Sending... L: ", driveMtrCmds['left'], ", R: ", driveMtrCmds['right'], \
                           ", A: ", armCmd, ", loopCounter: ", loopCounter)
                 loopCounter = loopCounter + 1
-                ser.write(chr(255).encode())  # Start byte
-                ser.write(chr(driveMtrCmds['left']).encode())
-                ser.write(chr(driveMtrCmds['right']).encode())
-                ser.write(chr(armCmd).encode())
+                ser.write((255).to_bytes(1, byteorder='big'))  # Start byte
+                ser.write((driveMtrCmds['left']).to_bytes(1, byteorder='big'))
+                ser.write((driveMtrCmds['right']).to_bytes(1, byteorder='big'))
+                ser.write((armCmd).to_bytes(1, byteorder='big'))
 
                 prevDriveMtrCmds = driveMtrCmds
                 prevArmCmd = armCmd
@@ -134,7 +134,7 @@ def arcadeDrive(yIn, rIn):
     yEndpoint = 127  # maximum/minumum (+/-) for the Y-axis translation
 
     rExpConst = 1.5  # exponential growth coefficient of the rotation -- should be between 1.0-4.0
-    rEndpoint = 90   # maximum/minimum (+/-) for the rotation
+    rEndpoint = 80   # maximum/minimum (+/-) for the rotation
 
     # Set a deadband for the raw joystick input
     yDeadband = 0.10
@@ -318,10 +318,10 @@ def sendNeutralCommand():
     global ser
 
     for i in range (0, 3):
-        ser.write(chr(255).encode())
-        ser.write(chr(127).encode())
-        ser.write(chr(127).encode())
-        ser.write(chr(127).encode())
+        ser.write((255).to_bytes(1, byteorder='big'))
+        ser.write((127).to_bytes(1, byteorder='big'))
+        ser.write((127).to_bytes(1, byteorder='big'))
+        ser.write((127).to_bytes(1, byteorder='big'))
 
 
 ############################################################
