@@ -9,9 +9,9 @@ const unsigned char armPin = 9;
 // Lights
 const unsigned char boardLedPin = 13;
 // LED Strip
-const unsigned char ledPinBlue = 14;
-const unsigned char ledPinRed = 15;
-const unsigned char ledPinGreen = 16;
+const unsigned char ledPinBlue = 16; // 14
+const unsigned char ledPinRed = 15; // 16
+const unsigned char ledPinGreen = 14; // 15
 enum LEDColor {
   OFF,
   RED,
@@ -125,9 +125,9 @@ void moveArm(int arm) {
   armSrvo.writeMicroseconds(arm);
 
   if (arm > 1505) {
-    setLEDColor(GREEN);
-  } else if(arm < 1495) {
     setLEDColor(BLUE);
+  } else if(arm < 1495) {
+    setLEDColor(GREEN);
   } else {
     setLEDColor(WHITE);
   }

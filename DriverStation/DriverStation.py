@@ -15,7 +15,7 @@ import math
 # To check what serial ports are available in Linux, use the bash command: dmesg | grep tty
 # To check what serial ports are available in Windows, use the cmd command: wmic path Win32_SerialPort
 #    OR go to Device Manager > Ports (COM & LPT)
-comPort = 'COM5'
+comPort = 'COM6'
 ser = serial.Serial(comPort, 57600, timeout=1)
 
 ### CONTROL SCHEME ###
@@ -101,8 +101,8 @@ def main():
                 loopCounter = loopCounter + 1
                 ser.write((255).to_bytes(1, byteorder='big'))  # Start byte
                 ser.write((driveMtrCmds['left']).to_bytes(1, byteorder='big'))
-                ser.write((driveMtrCmds['right']).to_bytes(1, byteorder='big'))
-                ser.write((armCmd).to_bytes(1, byteorder='big'))
+                ser.write((254-driveMtrCmds['right']).to_bytes(1, byteorder='big'))
+                ser.write((254-armCmd).to_bytes(1, byteorder='big'))
 
                 prevDriveMtrCmds = driveMtrCmds
                 prevArmCmd = armCmd
