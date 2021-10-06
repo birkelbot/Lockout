@@ -13,9 +13,8 @@ import sys
 import math
 
 # To check what serial ports are available in Linux, use the bash command: dmesg | grep tty
-# To check what serial ports are available in Windows, use the cmd command: wmic path Win32_SerialPort
-#    OR go to Device Manager > Ports (COM & LPT)
-comPort = 'COM6'
+# To check what serial ports are available in Windows, go to Device Manager > Ports (COM & LPT)
+comPort = 'COM3'
 ser = serial.Serial(comPort, 57600, timeout=1)
 
 ### CONTROL SCHEME ###
@@ -25,8 +24,8 @@ ser = serial.Serial(comPort, 57600, timeout=1)
 #     Right joystick X-axis -- turn/arc
 #
 # Arm:
-#    Right trigger -- arm up (analog control)
-#    Left trigger -- arm down (analog control)
+#   Right trigger -- arm up (analog control)
+#   Left trigger -- arm down (analog control)
 #######################
 
 # Set the channel numbers for various controls
@@ -35,24 +34,107 @@ AXIS_ID_DRIVE_ROTATION = 4  # Rotation comes from the right joystick X axis
 AXIS_ID_ARM = 2  # Analog triggers for arm control
 BUTTON_ID_STOP_PROGRAM = 1
 
+
+############################################################
+# @brief Class to help with printing text on a pygame screen.
+############################################################
+class TextPrint:
+    def __init__(self, screen):
+        self.screen = screen
+        self.font = pygame.font.Font(None, 25)
+        self.line_height = 20
+        self.BLACK = (   0,   0,   0)
+        self.WHITE = ( 255, 255, 255)
+        self.reset()
+
+    def disp(self, textString):
+        textBitmap = self.font.render(textString, True, self.BLACK)
+        self.screen.blit(textBitmap, [self.x, self.y])
+        self.y += self.line_height
+        
+    def reset(self):
+        self.screen.fill(self.WHITE)
+        self.x = 10
+        self.y = 10
+        
+    def indent(self):
+        self.x += 10
+        
+    def unindent(self):
+        self.x -= 10
+
+
+############################################################
+# @brief Class to print information on the driver station.
+############################################################
+class DriverStationScreen:
+    def __init__(self):
+        print("DriverStationScreen::init")
+        screen = pygame.display.set_mode([400, 300])
+        self.textPrint = TextPrint(screen)
+
+    ############################################################
+    ## @brief Display joystick inputs and motor commands
+    ## @param yRaw - the raw joystick input for the Y-translation of the robot
+    ## @param rRaw - the raw joystick input for the rotation of the robot
+    ## @param armRaw - the raw joystick input for the arm
+    ## @param lMtrCmd - the computed left motor command
+    ## @param rMtrCmd - the computed right motor command
+    ## @param armCmd - the computed arm command
+    ## @param packetsSent - the total number of packets sent so far to the robot
+    ############################################################
+    def updateDisplay(self, yRaw, rRaw, armRaw, lMtrCmd, rMtrCmd, armCmd, packetsSent):
+        self.textPrint.reset()
+
+        self.textPrint.disp("KEEP THIS WINDOW ACTIVE TO CONTINUE")
+        self.textPrint.disp("SENDING COMMANDS TO THE ROBOT")
+        self.textPrint.disp("")  # Intentional blank line
+
+        self.textPrint.disp("Raw Joystick Inputs (-1.0 <-> 1.0)")
+        self.textPrint.indent()
+        self.textPrint.disp("Y-translation raw: {}".format(yRaw))
+        self.textPrint.disp("Rotation raw: {}".format(rRaw))
+        self.textPrint.disp("Arm raw: {}".format(armRaw))
+        self.textPrint.unindent()
+        self.textPrint.disp("")  # Intentional blank line
+
+        self.textPrint.disp("Motor Commands (0 <-> 254, 127 is neutral)")
+        self.textPrint.indent()
+        self.textPrint.disp("Left drive motor: {}".format(lMtrCmd))
+        self.textPrint.disp("Right drive motor: {}".format(rMtrCmd))
+        self.textPrint.disp("Arm motor: {}".format(armCmd))
+
+        pygame.display.flip()
+
+
 def main():
 
     global ser
 
-    # Initialize the gamepad
     pygame.init()
+
+    # Create a UI for the driver station "game".
+    # NOTE: In order for pygame to process bluetooth controller inputs, it needs
+    #       to have a game that is in focus (i.e. the game must be the currently
+    #       active window).
+    screen = DriverStationScreen()
+    pygame.display.set_caption("Driver Station")
+
+    # Initialize the gamepad
+    pygame.joystick.init()
     joysticks = []
-    for i in range(0, pygame.joystick.get_count()):
+    for i in range(pygame.joystick.get_count()):
         joysticks.append(pygame.joystick.Joystick(i))
-        joysticks[-1].init()
-        print("Detected joystick '",joysticks[-1].get_name(),"'")
+        joysticks[i].init()
+        print("Detected joystick '", joysticks[i].get_name(), "'")
+        print("Joystick numaxes: ", joysticks[i].get_numaxes())
 
     # Local variables
     prevDriveMtrCmds = {'left':0, 'right':0}
     prevArmCmd = 127
     prevTimeSent = 0
     done = False
-    loopCounter = 0
+    packetsSent = 0
 
     try:
         while (done == False):
@@ -96,9 +178,6 @@ def main():
                  prevArmCmd != armCmd or \
                  time.time()*1000 > prevTimeSent + 50:
 
-                print("Sending... L: ", driveMtrCmds['left'], ", R: ", driveMtrCmds['right'], \
-                          ", A: ", armCmd, ", loopCounter: ", loopCounter)
-                loopCounter = loopCounter + 1
                 ser.write((255).to_bytes(1, byteorder='big'))  # Start byte
                 ser.write((driveMtrCmds['left']).to_bytes(1, byteorder='big'))
                 ser.write((254-driveMtrCmds['right']).to_bytes(1, byteorder='big'))
@@ -107,6 +186,11 @@ def main():
                 prevDriveMtrCmds = driveMtrCmds
                 prevArmCmd = armCmd
                 prevTimeSent = time.time()*1000
+
+                packetsSent = packetsSent + 1
+                screen.updateDisplay(yRaw, rRaw, armRaw, driveMtrCmds['left'], \
+                                     driveMtrCmds['right'], armCmd, packetsSent)
+
                 time.sleep(0.01)
 
     except KeyboardInterrupt:
@@ -128,13 +212,13 @@ def arcadeDrive(yIn, rIn):
     minCommand = -cmdRange
 
     # Set constants for the exponential functions for each input (y/r)
-    endExpConst = 1.44 # don't change this unless you've really looked over the math
-
     yExpConst = 1.5  # exponential growth coefficient of the Y-axis translation -- should be between 1.0-4.0
     yEndpoint = 127  # maximum/minumum (+/-) for the Y-axis translation
 
     rExpConst = 1.5  # exponential growth coefficient of the rotation -- should be between 1.0-4.0
     rEndpoint = 80   # maximum/minimum (+/-) for the rotation
+
+    endExpConst = 1.44 # don't change this unless you've really looked over the math
 
     # Set a deadband for the raw joystick input
     yDeadband = 0.10
