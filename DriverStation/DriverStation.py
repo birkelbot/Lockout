@@ -14,7 +14,7 @@ import math
 
 # To check what serial ports are available in Linux, use the bash command: dmesg | grep tty
 # To check what serial ports are available in Windows, go to Device Manager > Ports (COM & LPT)
-comPort = 'COM3'
+comPort = 'COM5'
 ser = serial.Serial(comPort, 57600, timeout=1)
 
 ### CONTROL SCHEME ###
@@ -153,8 +153,8 @@ def main():
 
             # Get the drive motor commands for Arcade Drive
             driveMtrCmds = arcadeDrive(yRaw, rRaw)
-            driveMtrCmds['left'] = driveMtrCmds['left']
-            driveMtrCmds['right'] = 254 - driveMtrCmds['right']
+            driveMtrCmds['left'] = 254- driveMtrCmds['left']
+            driveMtrCmds['right'] = driveMtrCmds['right']
 
             ##########################
 
@@ -165,7 +165,7 @@ def main():
 
             # NOTE: Choose linear or exponential drive by changing between
             #       `manualArmLinDrive()` and `manualArmExpDrive()`
-            armCmd = manualArmExpDrive(armRaw)
+            armCmd = 254 - manualArmExpDrive(armRaw)
 
             ##########################
 
@@ -221,12 +221,12 @@ def arcadeDrive(yIn, rIn):
     endExpConst = 1.44 # don't change this unless you've really looked over the math
 
     # Set a deadband for the raw joystick input
-    yDeadband = 0.10
-    rDeadband = 0.17
+    yDeadband = 0.08
+    rDeadband = 0.05
 
     # Set a base command (within the command range above) to overcome gearbox resistance at low drive speeds
-    leftMtrBaseCmd = int(2)
-    rightMtrBaseCmd = int(3)
+    leftMtrBaseCmd = int(10)
+    rightMtrBaseCmd = int(10)
 
     # Save the negative-ness, which will be re-applied after the exponential function is applied
     if yIn < 0:
@@ -314,16 +314,16 @@ def manualArmExpDrive(aIn):
     minCommand = -cmdRange
 
     # Set constants for the exponential function
+    # See a plot at https://www.wolframalpha.com/input?i=plot+e%5E%28%28x%5E3.0%29%2F1.44%29-1+for+x+%3D+0+to+x+%3D+1
     endExpConst = 1.44 # don't change this unless you've really looked over the math
-
-    expConst = 1.5  # exponential growth coefficient of the Y-axis translation -- should be between 1.0-4.0
+    expConst = 3.0  # exponential growth coefficient of the Y-axis translation -- should be between 1.0-4.0
     endpoint = 127  # maximum/minumum (+/-) for the Y-axis translation
 
     # Set a deadband for the raw joystick input
     deadband = 0.0
 
     # Set a base command (within the command range above) to overcome gearbox resistance at low drive speeds
-    baseCmd = int(5)
+    baseCmd = int(6)
 
     # Save the negative-ness, which will be re-applied after the exponential function is applied
     if aIn < 0:
