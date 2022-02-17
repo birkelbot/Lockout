@@ -33,6 +33,8 @@ AXIS_ID_DRIVE_VELOCITY = 1  # Y-axis translation comes from the left joystick Y 
 AXIS_ID_DRIVE_ROTATION = 4  # Rotation comes from the right joystick X axis
 AXIS_ID_ARM = 2  # Analog triggers for arm control
 BUTTON_ID_STOP_PROGRAM = 1
+BUTTON_ID_ARM_UP_SLOW = 5
+BUTTON_ID_ARM_DOWN_SLOW = 4 
 
 
 ############################################################
@@ -153,7 +155,7 @@ def main():
 
             # Get the drive motor commands for Arcade Drive
             driveMtrCmds = arcadeDrive(yRaw, rRaw)
-            driveMtrCmds['left'] = 254- driveMtrCmds['left']
+            driveMtrCmds['left'] = driveMtrCmds['left']
             driveMtrCmds['right'] = driveMtrCmds['right']
 
             ##########################
@@ -165,7 +167,9 @@ def main():
 
             # NOTE: Choose linear or exponential drive by changing between
             #       `manualArmLinDrive()` and `manualArmExpDrive()`
-            armCmd = 254 - manualArmExpDrive(armRaw)
+            armCmd = manualArmExpDrive( \
+                armRaw, joysticks[0].get_button(BUTTON_ID_ARM_DOWN_SLOW), \
+                joysticks[0].get_button(BUTTON_ID_ARM_UP_SLOW))
 
             ##########################
 
@@ -216,7 +220,7 @@ def arcadeDrive(yIn, rIn):
     yEndpoint = 127  # maximum/minumum (+/-) for the Y-axis translation
 
     rExpConst = 1.5  # exponential growth coefficient of the rotation -- should be between 1.0-4.0
-    rEndpoint = 80   # maximum/minimum (+/-) for the rotation
+    rEndpoint = 70   # maximum/minimum (+/-) for the rotation
 
     endExpConst = 1.44 # don't change this unless you've really looked over the math
 
@@ -303,9 +307,11 @@ def manualArmLinDrive(aIn):
 ## @brief  Function to compute the manual arm drive command
 ##         following an exponential control curve
 ## @param  aIn - raw input from -1.0 to 1.0
+## @param  armFwdSlowBtn - button which slowly drives the arm forward
+## @param  armRevSlowBtn - button which slowly drives the arm in reverse
 ## @return the arm command (0 to 254)
 ############################################################
-def manualArmExpDrive(aIn):
+def manualArmExpDrive(aIn, armFwdSlowBtn, armRevSlowBtn):
 
     # Set output command range constants
     zeroCommand = int(127)  # the default value that corresponds to no motor power
@@ -316,8 +322,10 @@ def manualArmExpDrive(aIn):
     # Set constants for the exponential function
     # See a plot at https://www.wolframalpha.com/input?i=plot+e%5E%28%28x%5E3.0%29%2F1.44%29-1+for+x+%3D+0+to+x+%3D+1
     endExpConst = 1.44 # don't change this unless you've really looked over the math
-    expConst = 3.0  # exponential growth coefficient of the Y-axis translation -- should be between 1.0-4.0
-    endpoint = 127  # maximum/minumum (+/-) for the Y-axis translation
+    expConst = 3.0  # exponential growth coefficient -- should be between 1.0-4.0
+    fwdEndpoint = 95  # maximum absolute value for the arm motor command in forward
+    revEndpoint = 127  # maximum absolute value for the arm motor command in reverse
+    armSlowCmd = 15  # absolute value for the arm motor in "slow" mode
 
     # Set a deadband for the raw joystick input
     deadband = 0.0
@@ -325,18 +333,28 @@ def manualArmExpDrive(aIn):
     # Set a base command (within the command range above) to overcome gearbox resistance at low drive speeds
     baseCmd = int(6)
 
-    # Save the negative-ness, which will be re-applied after the exponential function is applied
-    if aIn < 0:
-        neg = -1
-    else:
-        neg = 1
-
-    # Apply a deadband
+    # Apply the deadband
     if abs(aIn) < deadband:
         aIn = 0
+
+    # Save the negative-ness, which will be re-applied after the exponential function is applied
+    if (aIn < 0 and not armFwdSlowBtn) or armRevSlowBtn:
+        neg = -1
+        endpoint = revEndpoint
+    else:
+        neg = 1
+        endpoint = fwdEndpoint
+    print("aIn = ", aIn, ", armFwdSlowBtn = ", armFwdSlowBtn, ", armRevSlowBtn = ", armRevSlowBtn, ", neg = ", neg)
     
     # Compute the motor command using the exponential function (zero-based)
-    aCmd = int(neg*(math.pow(math.e, math.pow(math.fabs(aIn), expConst)/endExpConst)-1)*endpoint) # zero-based
+    aCmd = int((math.pow(math.e, math.pow(math.fabs(aIn), expConst)/endExpConst)-1)*endpoint) # zero-based
+
+    # The buttons override the what was computed via the analog input
+    if armFwdSlowBtn or armRevSlowBtn:
+        aCmd = armSlowCmd
+
+    # Re-apply the negative-ness
+    aCmd = neg * aCmd
 
     # Add an offset for the minimum command to overcome the gearboxes
     if aCmd > 0:
