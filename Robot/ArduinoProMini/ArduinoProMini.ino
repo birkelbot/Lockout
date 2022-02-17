@@ -43,6 +43,17 @@ int simulatedSerialCurrIndex = 0;
 int loopCount = 0;
 
 
+/*==============================DECLARATIONS==================================*/
+void processCmd(int left, int right, int arm);
+void moveArm(int arm);
+void runWheels(int left, int right);
+void idle();
+void setLEDColor(LEDColor color);
+void blinkLED(int count, int duration, LEDColor color);
+void blinkBoardLed(int count, int duration);
+bool serialAvailable(int count);
+
+
 /*=================================SET UP=====================================*/
 void setup() {
   // 57600 baud, pin 13 is an indicator LED
