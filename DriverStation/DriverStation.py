@@ -248,7 +248,7 @@ def arcadeDrive(yIn, rIn):
         yIn = 0
     if abs(rIn) < rDeadband:
         rIn = 0
-    
+
     # Compute the drive commands using the exponential function (zero-based)
     yCmd = int(yNeg*(math.pow(math.e, math.pow(math.fabs(yIn), yExpConst)/endExpConst)-1)*yEndpoint) # zero-based
     rCmd = int(rNeg*(math.pow(math.e, math.pow(math.fabs(rIn), rExpConst)/endExpConst)-1)*rEndpoint) # zero-based
@@ -267,17 +267,15 @@ def arcadeDrive(yIn, rIn):
     elif rightMtrCmd < 0:
         rightMtrCmd = rightMtrCmd - rightMtrBaseCmd
 
-    # print("L: ", leftMtrCmd, " R: ", rightMtrCmd)
-
     # If the commands are greater than the maximum or less than the minimum, scale them back
     maxMtrCmd = max(leftMtrCmd, rightMtrCmd)
     minMtrCmd = min(leftMtrCmd, rightMtrCmd)
     scaleFactor = 1.0
     if maxMtrCmd > maxCommand or minMtrCmd < minCommand:
         if maxMtrCmd > abs(minMtrCmd):
-            scaleFactor = float(maxCommand) / float(maxMtrCmd)
+            scaleFactor = abs(float(maxCommand) / float(maxMtrCmd))
         else:
-            scaleFactor = float(minCommand) / float(minMtrCmd)
+            scaleFactor = abs(float(minCommand) / float(minMtrCmd))
 
     leftdriveMtrCmdScaled = leftMtrCmd * scaleFactor
     rightdriveMtrCmdScaled = rightMtrCmd * scaleFactor
@@ -344,7 +342,6 @@ def manualArmExpDrive(aIn, armFwdSlowBtn, armRevSlowBtn):
     else:
         neg = 1
         endpoint = fwdEndpoint
-    print("aIn = ", aIn, ", armFwdSlowBtn = ", armFwdSlowBtn, ", armRevSlowBtn = ", armRevSlowBtn, ", neg = ", neg)
     
     # Compute the motor command using the exponential function (zero-based)
     aCmd = int((math.pow(math.e, math.pow(math.fabs(aIn), expConst)/endExpConst)-1)*endpoint) # zero-based
