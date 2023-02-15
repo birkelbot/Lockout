@@ -30,14 +30,14 @@ ser = serial.Serial(comPort, 57600, timeout=1)
 
 # Set the channel numbers for various controls
 AXIS_ID_DRIVE_VELOCITY = 1  # Y-axis translation comes from the left joystick Y axis
-AXIS_ID_DRIVE_ROTATION = 4  # Rotation comes from the right joystick X axis
-AXIS_ID_ARM = 2       # Analog triggers for arm control
+AXIS_ID_DRIVE_ROTATION = 2  # Rotation comes from the right joystick X axis
+AXIS_ID_ARM = 0       # Analog triggers for arm control
 ARM_USE_DUAL_ANALOG_INPUT = True  # Set to True/False for using single or dual analog triggers
 AXIS_ID_ARM_UP =  4   # For computers that use separate channels for the analog triggers
 AXIS_ID_ARM_DOWN =  5 # For computers that use separate channels for the analog triggers
 BUTTON_ID_STOP_PROGRAM = 1
-BUTTON_ID_ARM_UP_SLOW = 5
-BUTTON_ID_ARM_DOWN_SLOW = 4 
+BUTTON_ID_ARM_UP_SLOW = 7
+BUTTON_ID_ARM_DOWN_SLOW = 6 
 
 
 ############################################################
@@ -155,8 +155,8 @@ def main():
             ##### WHEEL COMMANDS #####
 
             # Get the raw values for drive translation/rotation using the gamepad.
-            yRaw = joysticks[0].get_axis(AXIS_ID_DRIVE_VELOCITY)
-            rRaw = -joysticks[0].get_axis(AXIS_ID_DRIVE_ROTATION)
+            yRaw = -joysticks[0].get_axis(AXIS_ID_DRIVE_VELOCITY)
+            rRaw = joysticks[0].get_axis(AXIS_ID_DRIVE_ROTATION)
 
             # Get the drive motor commands for Arcade Drive
             driveMtrCmds = arcadeDrive(yRaw, rRaw)
@@ -170,9 +170,9 @@ def main():
             # Get the raw values for the arm using the gamepad
             armRaw = 0
             if (ARM_USE_DUAL_ANALOG_INPUT):
-                if (armDualAnalogUpTriggerInitialized && \
+                if (armDualAnalogUpTriggerInitialized and \
                     armDualAnalogDownTriggerInitialized):
-                    armRaw = getArmRawFromDualAnalog( \
+                    armRaw = -getArmRawFromDualAnalog( \
                         joysticks[0].get_axis(AXIS_ID_ARM_UP), \
                         joysticks[0].get_axis(AXIS_ID_ARM_DOWN))
                 else:
@@ -313,10 +313,12 @@ def arcadeDrive(yIn, rIn):
 ## @return the overall raw arm command (-1 to 1)
 ############################################################
 def getArmRawFromDualAnalog(aUp, aDown):
+    aOut = 0
     if (aUp > -1):
-        return interp(aUp, [-1, 1], [0, 1])
+        aOut = interp(aUp, [-1, 1], [0, 1])
     if (aDown > -1):
-        return interp(aDown, [-1, 1], [0, 1])
+        aOut = -interp(aDown, [-1, 1], [0, 1])
+    return aOut
 
 
 ############################################################
