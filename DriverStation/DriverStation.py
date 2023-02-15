@@ -32,7 +32,7 @@ ser = serial.Serial(comPort, 57600, timeout=1)
 AXIS_ID_DRIVE_VELOCITY = 1  # Y-axis translation comes from the left joystick Y axis
 AXIS_ID_DRIVE_ROTATION = 4  # Rotation comes from the right joystick X axis
 AXIS_ID_ARM = 2       # Analog triggers for arm control
-ARM_USE_DUAL_ANALOG_INPUT = true  # Set to true/false for using single or dual analog triggers
+ARM_USE_DUAL_ANALOG_INPUT = True  # Set to True/False for using single or dual analog triggers
 AXIS_ID_ARM_UP =  4   # For computers that use separate channels for the analog triggers
 AXIS_ID_ARM_DOWN =  5 # For computers that use separate channels for the analog triggers
 BUTTON_ID_STOP_PROGRAM = 1
@@ -140,6 +140,8 @@ def main():
     prevTimeSent = 0
     done = False
     packetsSent = 0
+    armDualAnalogUpTriggerInitialized = False
+    armDualAnalogDownTriggerInitialized = False
 
     try:
         while (done == False):
@@ -166,10 +168,18 @@ def main():
             ###### ARM COMMAND #######
 
             # Get the raw values for the arm using the gamepad
+            armRaw = 0
             if (ARM_USE_DUAL_ANALOG_INPUT):
-                armRaw = getArmRawFromDualAnalog( \
-                    joysticks[0].get_axis(AXIS_ID_ARM_UP), \
-                    joysticks[0].get_axis(AXIS_ID_ARM_DOWN))
+                if (armDualAnalogUpTriggerInitialized && \
+                    armDualAnalogDownTriggerInitialized):
+                    armRaw = getArmRawFromDualAnalog( \
+                        joysticks[0].get_axis(AXIS_ID_ARM_UP), \
+                        joysticks[0].get_axis(AXIS_ID_ARM_DOWN))
+                else:
+                    if (joysticks[0].get_axis(AXIS_ID_ARM_UP) != 0):
+                        armDualAnalogUpTriggerInitialized = True
+                    if (joysticks[0].get_axis(AXIS_ID_ARM_DOWN) != 0):
+                        armDualAnalogDownTriggerInitialized = True
             else:
                 armRaw = joysticks[0].get_axis(AXIS_ID_ARM)
 
