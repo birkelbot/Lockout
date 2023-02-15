@@ -14,7 +14,7 @@ import math
 
 # To check what serial ports are available in Linux, use the bash command: dmesg | grep tty
 # To check what serial ports are available in Windows, go to Device Manager > Ports (COM & LPT)
-comPort = 'COM5'
+comPort = '/dev/ttyUSB0'
 ser = serial.Serial(comPort, 57600, timeout=1)
 
 ### CONTROL SCHEME ###
@@ -31,7 +31,10 @@ ser = serial.Serial(comPort, 57600, timeout=1)
 # Set the channel numbers for various controls
 AXIS_ID_DRIVE_VELOCITY = 1  # Y-axis translation comes from the left joystick Y axis
 AXIS_ID_DRIVE_ROTATION = 4  # Rotation comes from the right joystick X axis
-AXIS_ID_ARM = 2  # Analog triggers for arm control
+AXIS_ID_ARM = 2       # Analog triggers for arm control
+ARM_USE_DUAL_ANALOG_INPUT = true  # Set to true/false for using single or dual analog triggers
+AXIS_ID_ARM_UP =  4   # For computers that use separate channels for the analog triggers
+AXIS_ID_ARM_DOWN =  5 # For computers that use separate channels for the analog triggers
 BUTTON_ID_STOP_PROGRAM = 1
 BUTTON_ID_ARM_UP_SLOW = 5
 BUTTON_ID_ARM_DOWN_SLOW = 4 
@@ -163,7 +166,12 @@ def main():
             ###### ARM COMMAND #######
 
             # Get the raw values for the arm using the gamepad
-            armRaw = joysticks[0].get_axis(AXIS_ID_ARM)
+            if (ARM_USE_DUAL_ANALOG_INPUT):
+                armRaw = getArmRawFromDualAnalog( \
+                    joysticks[0].get_axis(AXIS_ID_ARM_UP), \
+                    joysticks[0].get_axis(AXIS_ID_ARM_DOWN))
+            else:
+                armRaw = joysticks[0].get_axis(AXIS_ID_ARM)
 
             # NOTE: Choose linear or exponential drive by changing between
             #       `manualArmLinDrive()` and `manualArmExpDrive()`
@@ -285,6 +293,20 @@ def arcadeDrive(yIn, rIn):
     rightMtrCmdFinal = int(rightdriveMtrCmdScaled + zeroCommand)
 
     return {'left':leftMtrCmdFinal, 'right':rightMtrCmdFinal}
+
+
+############################################################
+## @brief  Gets the raw arm input using separate analog triggers
+##         for arm up and arm down.
+## @param  aUp - analog trigger input for "arm up", where -1 is fully open and 1 is fully pressed
+## @param  aDown - analog trigger input for "arm down", where -1 is fully open and 1 is fully pressed
+## @return the overall raw arm command (-1 to 1)
+############################################################
+def getArmRawFromDualAnalog(aUp, aDown):
+    if (aUp > -1):
+        return interp(aUp, [-1, 1], [0, 1])
+    if (aDown > -1):
+        return interp(aDown, [-1, 1], [0, 1])
 
 
 ############################################################
