@@ -219,7 +219,7 @@ def arcadeDrive(yIn, rIn):
     yExpConst = 1.5  # exponential growth coefficient of the Y-axis translation -- should be between 1.0-4.0
     yEndpoint = 127  # maximum/minumum (+/-) for the Y-axis translation
 
-    rExpConst = 1.5  # exponential growth coefficient of the rotation -- should be between 1.0-4.0
+    rExpConst = 3.0  # exponential growth coefficient of the rotation -- should be between 1.0-4.0
     rEndpoint = 70   # maximum/minimum (+/-) for the rotation
 
     endExpConst = 1.44 # don't change this unless you've really looked over the math
