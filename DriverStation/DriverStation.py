@@ -238,7 +238,7 @@ def arcadeDrive(yIn, rIn):
     yEndpoint = 127  # maximum/minumum (+/-) for the Y-axis translation
 
     rExpConst = 2.5  # exponential growth coefficient of the rotation -- should be between 1.0-4.0
-    rEndpoint = 80   # maximum/minimum (+/-) for the rotation
+    rEndpoint = 90   # maximum/minimum (+/-) for the rotation
 
     endExpConst = 1.44 # don't change this unless you've really looked over the math
 
@@ -278,6 +278,7 @@ def arcadeDrive(yIn, rIn):
           - 1 \
         ) \
         * yEndpoint \
+        * yNeg \
       )
     rCmd = \
       int( \
@@ -289,6 +290,7 @@ def arcadeDrive(yIn, rIn):
           - 1 \
         ) \
         * rEndpoint \
+        * rNeg \
       )
 
     # Convert the drive commands into motor comands (zero-based)
