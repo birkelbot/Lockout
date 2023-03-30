@@ -36,8 +36,8 @@ ARM_USE_DUAL_ANALOG_INPUT = True  # Set to True/False for using single or dual a
 AXIS_ID_ARM_UP =  4   # For computers that use separate channels for the analog triggers
 AXIS_ID_ARM_DOWN =  5 # For computers that use separate channels for the analog triggers
 BUTTON_ID_STOP_PROGRAM = 1
-BUTTON_ID_ARM_UP_SLOW = 7
-BUTTON_ID_ARM_DOWN_SLOW = 6 
+BUTTON_ID_ARM_TURBO = 7
+BUTTON_ID_ARM_DOWN_SLOW = 6
 
 
 ############################################################
@@ -185,9 +185,9 @@ def main():
 
             # NOTE: Choose linear or exponential drive by changing between
             #       `manualArmLinDrive()` and `manualArmExpDrive()`
-            armCmd = manualArmExpDrive( \
-                armRaw, joysticks[0].get_button(BUTTON_ID_ARM_DOWN_SLOW), \
-                joysticks[0].get_button(BUTTON_ID_ARM_UP_SLOW))
+            armCmd = 254 - manualArmExpDrive( \
+                -armRaw, joysticks[0].get_button(BUTTON_ID_ARM_TURBO), \
+                joysticks[0].get_button(BUTTON_ID_ARM_DOWN_SLOW))
 
             ##########################
 
@@ -237,8 +237,8 @@ def arcadeDrive(yIn, rIn):
     yExpConst = 1.5  # exponential growth coefficient of the Y-axis translation -- should be between 1.0-4.0
     yEndpoint = 127  # maximum/minumum (+/-) for the Y-axis translation
 
-    rExpConst = 3.0  # exponential growth coefficient of the rotation -- should be between 1.0-4.0
-    rEndpoint = 70   # maximum/minimum (+/-) for the rotation
+    rExpConst = 2.5  # exponential growth coefficient of the rotation -- should be between 1.0-4.0
+    rEndpoint = 80   # maximum/minimum (+/-) for the rotation
 
     endExpConst = 1.44 # don't change this unless you've really looked over the math
 
@@ -268,8 +268,28 @@ def arcadeDrive(yIn, rIn):
         rIn = 0
 
     # Compute the drive commands using the exponential function (zero-based)
-    yCmd = int(yNeg*(math.pow(math.e, math.pow(math.fabs(yIn), yExpConst)/endExpConst)-1)*yEndpoint) # zero-based
-    rCmd = int(rNeg*(math.pow(math.e, math.pow(math.fabs(rIn), rExpConst)/endExpConst)-1)*rEndpoint) # zero-based
+    yCmd = \
+      int( \
+        ( \
+          math.pow( \
+            math.e, \
+            math.pow(math.fabs(yIn), yExpConst) / endExpConst \
+          ) \
+          - 1 \
+        ) \
+        * yEndpoint \
+      )
+    rCmd = \
+      int( \
+        ( \
+          math.pow( \
+            math.e, \
+            math.pow(math.fabs(rIn), rExpConst) / endExpConst \
+          ) \
+          - 1 \
+        ) \
+        * rEndpoint \
+      )
 
     # Convert the drive commands into motor comands (zero-based)
     leftMtrCmd = yCmd + rCmd   # zero-based
@@ -338,12 +358,12 @@ def manualArmLinDrive(aIn):
 ############################################################
 ## @brief  Function to compute the manual arm drive command
 ##         following an exponential control curve
-## @param  aIn - raw input from -1.0 to 1.0
-## @param  armFwdSlowBtn - button which slowly drives the arm forward
-## @param  armRevSlowBtn - button which slowly drives the arm in reverse
-## @return the arm command (0 to 254)
+## @param  aIn - raw input from -1.0 to 1.0, where 1.0 is "up" and -1.0 is "down"
+## @param  armTurbo - button which when held, gives more power to the arm
+## @param  armDownSlowBtn - button which slowly drives the arm in reverse
+## @return the arm command (0 to 254), where 0 is "max down" and 254 is "max up"
 ############################################################
-def manualArmExpDrive(aIn, armFwdSlowBtn, armRevSlowBtn):
+def manualArmExpDrive(aIn, armTurbo, armDownSlowBtn):
 
     # Set output command range constants
     zeroCommand = int(127)  # the default value that corresponds to no motor power
@@ -355,8 +375,9 @@ def manualArmExpDrive(aIn, armFwdSlowBtn, armRevSlowBtn):
     # See a plot at https://www.wolframalpha.com/input?i=plot+e%5E%28%28x%5E3.0%29%2F1.44%29-1+for+x+%3D+0+to+x+%3D+1
     endExpConst = 1.44 # don't change this unless you've really looked over the math
     expConst = 3.0  # exponential growth coefficient -- should be between 1.0-4.0
-    fwdEndpoint = 95  # maximum absolute value for the arm motor command in forward
-    revEndpoint = 127  # maximum absolute value for the arm motor command in reverse
+    downEndpoint = 95  # maximum absolute value for the arm motor command in forward
+    upEndpoint = 127  # maximum absolute value for the arm motor command in reverse
+    nonTurboMultiplier = 0.7  # multiplier applied when *not* in turbo mode
     armSlowCmd = 15  # absolute value for the arm motor in "slow" mode
 
     # Set a deadband for the raw joystick input
@@ -370,28 +391,42 @@ def manualArmExpDrive(aIn, armFwdSlowBtn, armRevSlowBtn):
         aIn = 0
 
     # Save the negative-ness, which will be re-applied after the exponential function is applied
-    if (aIn < 0 and not armFwdSlowBtn) or armRevSlowBtn:
+    if aIn < 0 or armDownSlowBtn:
         neg = -1
-        endpoint = revEndpoint
+        endpoint = downEndpoint
     else:
         neg = 1
-        endpoint = fwdEndpoint
+        endpoint = upEndpoint
     
     # Compute the motor command using the exponential function (zero-based)
-    aCmd = int((math.pow(math.e, math.pow(math.fabs(aIn), expConst)/endExpConst)-1)*endpoint) # zero-based
+    aCmd = \
+      int( \
+        ( \
+          math.pow( \
+            math.e, \
+            math.pow(math.fabs(aIn), expConst) / endExpConst \
+          ) \
+          - 1 \
+        ) \
+        * (endpoint - baseCmd) \
+      )
 
-    # The buttons override the what was computed via the analog input
-    if armFwdSlowBtn or armRevSlowBtn:
+    # Add in the base command if the arm command is non-zero
+    if aCmd > 0:
+      aCmd = aCmd + baseCmd
+
+    print("aCmd = ", aCmd)
+
+    # If the arm is not in turbo, then scale down the power
+    if not armTurbo:
+        aCmd = int(aCmd * nonTurboMultiplier)
+
+    # The buttons override what was computed via the analog input
+    if armDownSlowBtn:
         aCmd = armSlowCmd
 
     # Re-apply the negative-ness
     aCmd = neg * aCmd
-
-    # Add an offset for the minimum command to overcome the gearboxes
-    if aCmd > 0:
-        aCmd = aCmd + baseCmd
-    elif aCmd < 0:
-        aCmd = aCmd - baseCmd
 
     # If the command is greater than the maximum or less than the minimum, scale it back
     if aCmd > maxCommand:
