@@ -417,8 +417,6 @@ def manualArmExpDrive(aIn, armTurbo, armDownSlowBtn):
     if aCmd > 0:
       aCmd = aCmd + baseCmd
 
-    print("aCmd = ", aCmd)
-
     # If the arm is not in turbo, then scale down the power
     if not armTurbo:
         aCmd = int(aCmd * nonTurboMultiplier)
