@@ -237,7 +237,7 @@ def arcadeDrive(yIn, rIn):
     yExpConst = 1.5  # exponential growth coefficient of the Y-axis translation -- should be between 1.0-4.0
     yEndpoint = 127  # maximum/minumum (+/-) for the Y-axis translation
 
-    rExpConst = 2.5  # exponential growth coefficient of the rotation -- should be between 1.0-4.0
+    rExpConst = 2.75  # exponential growth coefficient of the rotation -- should be between 1.0-4.0
     rEndpoint = 90   # maximum/minimum (+/-) for the rotation
 
     endExpConst = 1.44 # don't change this unless you've really looked over the math
@@ -379,7 +379,7 @@ def manualArmExpDrive(aIn, armTurbo, armDownSlowBtn):
     expConst = 3.0  # exponential growth coefficient -- should be between 1.0-4.0
     downEndpoint = 95  # maximum absolute value for the arm motor command in forward
     upEndpoint = 127  # maximum absolute value for the arm motor command in reverse
-    nonTurboMultiplier = 0.7  # multiplier applied when *not* in turbo mode
+    nonTurboMultiplier = 0.8  # multiplier applied when *not* in turbo mode
     armSlowCmd = 15  # absolute value for the arm motor in "slow" mode
 
     # Set a deadband for the raw joystick input
