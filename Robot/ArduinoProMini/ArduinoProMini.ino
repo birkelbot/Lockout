@@ -2,9 +2,10 @@
 
 /*==============================GLOBAL VARS===================================*/
 //Motor Pins
-const unsigned char leftPin = 5;
+
+const unsigned char leftPin = 5;    // 9 for the old PCB
 const unsigned char rightPin = 6;
-const unsigned char armPin = 9;
+const unsigned char armPin = 9;    // 5 for the old PCB
 
 // Lights
 const unsigned char boardLedPin = 13;
