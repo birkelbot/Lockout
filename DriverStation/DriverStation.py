@@ -155,13 +155,11 @@ def main():
             ##### WHEEL COMMANDS #####
 
             # Get the raw values for drive translation/rotation using the gamepad.
-            yRaw = -joysticks[0].get_axis(AXIS_ID_DRIVE_VELOCITY)
+            yRaw = joysticks[0].get_axis(AXIS_ID_DRIVE_VELOCITY)
             rRaw = joysticks[0].get_axis(AXIS_ID_DRIVE_ROTATION)
 
             # Get the drive motor commands for Arcade Drive
             driveMtrCmds = arcadeDrive(yRaw, rRaw)
-            driveMtrCmds['left'] = driveMtrCmds['left']
-            driveMtrCmds['right'] = driveMtrCmds['right']
 
             ##########################
 
