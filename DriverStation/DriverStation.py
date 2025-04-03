@@ -244,6 +244,10 @@ def arcadeDrive(yIn, rIn):
     yDeadband = 0.08
     rDeadband = 0.05
 
+    # Set a turning correction to help the robot drive straight (should be greater than the deadband)
+    fwdTurningCorrection = 0
+    revTurningCorrection = 0
+
     # Set a base command (within the command range above) to overcome gearbox resistance at low drive speeds
     leftMtrBaseCmd = int(10)
     rightMtrBaseCmd = int(10)
@@ -264,6 +268,12 @@ def arcadeDrive(yIn, rIn):
         yIn = 0
     if abs(rIn) < rDeadband:
         rIn = 0
+
+    # Apply a turning correction to help the robot drive straight
+    if yIn > 0:
+        rIn += fwdTurningCorrection
+    if yIn < 0:
+        rIn += revTurningCorrection
 
     # Compute the drive commands using the exponential function (zero-based)
     yCmd = \
