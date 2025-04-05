@@ -36,8 +36,9 @@ ARM_USE_DUAL_ANALOG_INPUT = True  # Set to True/False for using single or dual a
 AXIS_ID_ARM_UP =  4   # For computers that use separate channels for the analog triggers
 AXIS_ID_ARM_DOWN =  5 # For computers that use separate channels for the analog triggers
 BUTTON_ID_STOP_PROGRAM = 1
-BUTTON_ID_ARM_TURBO = 7
-BUTTON_ID_ARM_DOWN_SLOW = 6
+BUTTON_ID_ARM_TURBO = 0  # "A" button
+BUTTON_ID_ARM_DOWN_SLOW = 6  # Left bumper
+BUTTON_ID_ARM_UP_SLOW = 7  # Right bumper
 
 
 ############################################################
@@ -185,7 +186,8 @@ def main():
             #       `manualArmLinDrive()` and `manualArmExpDrive()`
             armCmd = 254 - manualArmExpDrive( \
                 -armRaw, joysticks[0].get_button(BUTTON_ID_ARM_TURBO), \
-                joysticks[0].get_button(BUTTON_ID_ARM_DOWN_SLOW))
+                joysticks[0].get_button(BUTTON_ID_ARM_DOWN_SLOW), \
+                joysticks[0].get_button(BUTTON_ID_ARM_UP_SLOW))
 
             ##########################
 
@@ -370,10 +372,11 @@ def manualArmLinDrive(aIn):
 ##         following an exponential control curve
 ## @param  aIn - raw input from -1.0 to 1.0, where 1.0 is "up" and -1.0 is "down"
 ## @param  armTurbo - button which when held, gives more power to the arm
-## @param  armDownSlowBtn - button which slowly drives the arm in reverse
+## @param  armDownSlowBtn - button which slowly drives the arm down
+## @param  armUpSlowBtn - button which slowly drives the arm up
 ## @return the arm command (0 to 254), where 0 is "max down" and 254 is "max up"
 ############################################################
-def manualArmExpDrive(aIn, armTurbo, armDownSlowBtn):
+def manualArmExpDrive(aIn, armTurbo, armDownSlowBtn, armUpSlowBtn):
 
     # Set output command range constants
     zeroCommand = int(127)  # the default value that corresponds to no motor power
@@ -388,7 +391,8 @@ def manualArmExpDrive(aIn, armTurbo, armDownSlowBtn):
     downEndpoint = 95  # maximum absolute value for the arm motor command in forward
     upEndpoint = 127  # maximum absolute value for the arm motor command in reverse
     nonTurboMultiplier = 0.8  # multiplier applied when *not* in turbo mode
-    armSlowCmd = 15  # absolute value for the arm motor in "slow" mode
+    armDownSlowCmd = 15  # absolute value for the arm motor in "slow" mode
+    armUpSlowCmd = 25  # absolute value for the arm motor in "slow" mode
 
     # Set a deadband for the raw joystick input
     deadband = 0.0
@@ -431,7 +435,9 @@ def manualArmExpDrive(aIn, armTurbo, armDownSlowBtn):
 
     # The buttons override what was computed via the analog input
     if armDownSlowBtn:
-        aCmd = armSlowCmd
+        aCmd = armDownSlowCmd
+    if armUpSlowBtn:
+        aCmd = armUpSlowCmd
 
     # Re-apply the negative-ness
     aCmd = neg * aCmd
